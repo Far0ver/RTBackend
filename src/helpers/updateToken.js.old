@@ -1,0 +1,36 @@
+import User from "../models/user.js";
+import { removeNoValidTokens, isTokenExpired } from "./removeNoValidTokens.js";
+import removeToken from "./removeToken.js"
+
+async function updateToken(userId, receivedToken) {
+  try {
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return { error: { status: 401, message: `Пользователь не найден` } };
+    }
+
+    const isTokenExists = user.tokens.includes(receivedToken);
+
+    if (isTokenExists) {
+      const isExpired = await isTokenExpired(receivedToken);
+      if (isExpired) {
+        await removeToken(userId, receivedToken);
+        return { error: { status: 401, message: `Токен истек` } };
+      }
+
+      const newToken = await createToken(userId);
+
+      await User.findByIdAndUpdate(userId, { $pull: { tokens: receivedToken } });
+      await User.findByIdAndUpdate(userId, { $push: { tokens: newToken } });
+
+      return newToken;
+    } else {
+      return { error: { status: 401, message: `Токен не найден` } };
+    }
+  } catch (error) {
+    return { error: { status: 500, message: "Ошибка обновления токена" } };
+  }
+}
+
+export default updateToken;
